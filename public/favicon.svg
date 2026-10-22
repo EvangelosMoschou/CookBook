@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CookBook">
+  <rect width="64" height="64" rx="14" fill="#E8762F"/>
+  <path d="M16 20h13c2.8 0 5 2.2 5 5v20c-1.6-1.9-4-3-6.4-3H16z" fill="#FFFBF5"/>
+  <path d="M48 20H35c-2.8 0-5 2.2-5 5v20c1.6-1.9 4-3 6.4-3H48z" fill="#FFE7D2"/>
+</svg>
