@@ -28,6 +28,7 @@ export type CommentOutcome =
   | { type: 'banned' }
   | { type: 'violation' }
   | { type: 'empty' }
+  | { type: 'error' }
   | null;
 
 // ─── Component Props ──────────────────────────────────────────────────────────
@@ -37,4 +38,5 @@ export interface TopRecipeChartProps {
   recipesCount?: number;
   onBack?: () => void;
   desktop?: boolean;
+  showExitBar?: boolean;
 }

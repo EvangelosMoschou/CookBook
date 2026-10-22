@@ -305,7 +305,7 @@ export function RecipeSuggestionsForm({ onBack, hasBan, desktop }: RecipeSuggest
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div style={{
-      ...(desktop ? { width: '100%', minHeight: '100%' } : { width: '393px', height: '852px', overflow: 'hidden' }),
+      ...(desktop ? { width: '100%', minHeight: '100%' } : { width: '100%', height: '100%', overflow: 'hidden' }),
       backgroundColor: '#FFFBF5',
       position: 'relative',
       display: 'flex', flexDirection: 'column',
@@ -512,7 +512,7 @@ export function RecipeSuggestionsForm({ onBack, hasBan, desktop }: RecipeSuggest
       {/* ════════════════════════ RESULT MODAL (search outcome) ════════════════════════ */}
       {resultModal === 'result' && meta && (
         <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div style={{ width: '355px', backgroundColor: '#FFFFFF', borderRadius: '20px', padding: '28px 24px', boxShadow: '0 12px 48px rgba(0,0,0,0.28)' }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ width: 'min(355px, calc(100% - 32px))', backgroundColor: '#FFFFFF', borderRadius: '20px', padding: '28px 24px', boxShadow: '0 12px 48px rgba(0,0,0,0.28)' }} onClick={(e) => e.stopPropagation()}>
 
             {/* Icon */}
             <div style={{ textAlign: 'center', marginBottom: '16px' }}>

@@ -3,8 +3,10 @@ import { VerifiedBadge } from './VerifiedBadge';
 // ─── Shared style ─────────────────────────────────────────────────────────────
 
 const HOME_BUTTON_STYLE: React.CSSProperties = {
-  width: '280px',
-  height: '56px',
+  width: '100%',
+  maxWidth: '320px',
+  minHeight: '56px',
+  padding: '12px 16px',
   backgroundColor: '#E8762F',
   borderRadius: '12px',
   fontFamily: 'Inter, sans-serif',
@@ -23,18 +25,20 @@ export function HomeScreen({ onPostJob, onRecipeSuggestions, onTopRecipeChart }:
 }) {
   return (
     <div 
-      className="flex flex-col items-center justify-center" 
       style={{ 
-        width: '393px', 
-        height: '852px',
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%', 
+        height: '100%',
         backgroundColor: '#FFFBF5'
       }}
     >
       {/* Header */}
       <div 
-        className="absolute top-0 left-0 right-0 flex items-center justify-between px-4"
+        className="flex items-center justify-between px-4"
         style={{ 
           height: '56px', 
+          flexShrink: 0,
           backgroundColor: '#2D3E2C',
           borderBottom: '1px solid #E5E5E0' 
         }}
@@ -55,12 +59,15 @@ export function HomeScreen({ onPostJob, onRecipeSuggestions, onTopRecipeChart }:
       </div>
 
       {/* Main Content */}
-      <div className="flex flex-col items-center justify-center gap-4">
+      <div 
+        className="flex flex-col items-center justify-center"
+        style={{ flex: 1, minHeight: 0, overflowY: 'auto', gap: '16px', padding: '24px 20px' }}
+      >
         <div className="text-center">
           <h2 
             style={{
               fontFamily: 'Playfair Display, serif',
-              fontSize: '28px',
+              fontSize: 'clamp(24px, 7vw, 28px)',
               fontWeight: '700',
               color: '#2D3E2C',
               marginBottom: '8px'
@@ -71,7 +78,7 @@ export function HomeScreen({ onPostJob, onRecipeSuggestions, onTopRecipeChart }:
           <p 
             style={{
               fontFamily: 'Inter, sans-serif',
-              fontSize: '16px',
+              fontSize: 'clamp(14px, 4vw, 16px)',
               color: '#6B7269',
               marginBottom: '16px'
             }}

@@ -57,6 +57,15 @@ const OUTCOME_DISPLAY: Record<NonNullable<CommentOutcome>['type'], OutcomeDispla
     secondaryLabel: 'Dismiss',
     secondaryIsExit: false,
   },
+  error: {
+    bg: '#FEF2F2',
+    borderColor: '#F87171',
+    textColor: '#B91C1C',
+    message: 'Could not post your comment — please try again.',
+    primaryLabel: null,
+    secondaryLabel: 'Dismiss',
+    secondaryIsExit: false,
+  },
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -106,7 +115,7 @@ function CommentFeedback({
           onClick={cfg.secondaryIsExit ? onExit : onDismiss}
           style={cfg.primaryLabel ? outlineButtonStyle : fullWidthDarkButtonStyle}
         >
-          Cancel
+          {cfg.secondaryLabel}
         </button>
       </div>
     </div>
@@ -207,6 +216,10 @@ interface CommentSectionProps {
   hasBan: boolean;
   /** Called when the user presses any "Cancel" button in the feedback banner. */
   onExit: () => void;
+  /** Recipe the comments belong to. Enables persistence in api mode. */
+  recipeId?: number;
+  /** Set when this recipe exists in the backend (i.e. came from the API). */
+  persistToApi?: boolean;
 }
 
 /**
@@ -215,9 +228,9 @@ interface CommentSectionProps {
  * Owns its own state via `useComments`, keeping parent components free from
  * comment-specific logic (SRP / Dependency Inversion via the hook).
  */
-export function CommentSection({ hasBan, onExit }: CommentSectionProps) {
+export function CommentSection({ hasBan, onExit, recipeId, persistToApi }: CommentSectionProps) {
   const { comments, commentText, setCommentText, outcome, submitComment, dismissOutcome } =
-    useComments(hasBan);
+    useComments(hasBan, { recipeId, persist: persistToApi });
 
   return (
     <div style={{ marginBottom: '20px' }}>

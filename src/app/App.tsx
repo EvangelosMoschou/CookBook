@@ -1,5 +1,7 @@
 import { lazy, Suspense, useState } from 'react';
 import { HomeScreen } from './components/HomeScreen';
+import { useApiHealth } from './data/useApiHealth';
+import { PHONE_BREAKPOINT, useViewport } from './hooks/useViewport';
 
 const JobListingForm = lazy(() =>
   import('./components/JobListingForm').then((m) => ({ default: m.JobListingForm })),
@@ -192,6 +194,32 @@ export default function App() {
   const [showTopRecipeChart,    setShowTopRecipeChart]    = useState(false);
   const [desktopMode,           setDesktopMode]           = useState(true);
 
+  const api = useApiHealth();
+  const { width: viewportWidth, height: viewportHeight } = useViewport();
+  const isPhone = viewportWidth < PHONE_BREAKPOINT;
+  const effectiveDesktop = desktopMode && !isPhone;
+
+  // The mobile preview renders a fixed 393×852 device; scale it down when the
+  // window is smaller than the frame so it never overflows.
+  const frameScale = Math.max(
+    0.4,
+    Math.min(
+      1,
+      (viewportWidth - 256 - 64) / (393 + 24),
+      (viewportHeight - 60 - 48) / (852 + 24),
+    ),
+  );
+  const apiDot =
+    api.status === 'online' ? '#5A8F56'
+      : api.status === 'checking' ? '#F4A236'
+      : api.status === 'offline' ? '#C84538'
+      : '#6B7269';
+  const apiLabel =
+    api.status === 'online' ? `API · online · ${api.counts?.recipes ?? 0} recipes`
+      : api.status === 'checking' ? 'API · checking…'
+      : api.status === 'offline' ? 'API · offline'
+      : 'Demo data (mock)';
+
   const activeView: ActiveView = showJobForm ? 'job'
     : showRecipeSuggestions ? 'recipes'
     : showTopRecipeChart    ? 'chart'
@@ -225,15 +253,28 @@ export default function App() {
   const goJob     = () => { setShowJobForm(true);  setShowRecipeSuggestions(false); setShowTopRecipeChart(false); };
 
   const navItems = [
-    { view: 'home'    as ActiveView, label: 'Home',               emoji: '🏠', action: goHome    },
-    { view: 'recipes' as ActiveView, label: 'Recipe Suggestions', emoji: '🔍', action: goRecipes },
-    { view: 'chart'   as ActiveView, label: 'Top Recipe Chart',   emoji: '📊', action: goChart   },
-    { view: 'job'     as ActiveView, label: 'Post a Job',         emoji: '💼', action: goJob     },
+    { view: 'home'    as ActiveView, label: 'Home',               short: 'Home',     emoji: '🏠', action: goHome    },
+    { view: 'recipes' as ActiveView, label: 'Recipe Suggestions', short: 'Recipes',  emoji: '🔍', action: goRecipes },
+    { view: 'chart'   as ActiveView, label: 'Top Recipe Chart',   short: 'Chart',    emoji: '📊', action: goChart   },
+    { view: 'job'     as ActiveView, label: 'Post a Job',         short: 'Post Job', emoji: '💼', action: goJob     },
   ];
 
   // Shared scenario dropdown — rendered into mobile or desktop header
-  const ScenarioDropdown = () => (
-    <div style={{ position: 'absolute', top: '44px', right: 0, width: '240px', padding: '12px', zIndex: 50, backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', border: '1px solid #e5e5e0' }}>
+  const ScenarioDropdown = ({ anchor = 'below' }: { anchor?: 'below' | 'above' }) => (
+    <div style={{
+      position: 'absolute',
+      ...(anchor === 'above' ? { bottom: '52px', right: 0 } : { top: 0, right: 0 }),
+      width: '240px',
+      maxWidth: 'calc(100vw - 24px)',
+      padding: '12px',
+      zIndex: 50,
+      backgroundColor: '#fff',
+      borderRadius: '12px',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+      border: '1px solid #e5e5e0',
+      maxHeight: 'calc(100dvh - 120px)',
+      overflowY: 'auto',
+    }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
         <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#6B7269', border: `2px solid ${vmRingColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif', fontSize: '11px', fontWeight: '700', color: '#FFFFFF', flexShrink: 0 }}>VM</div>
         <div>
@@ -303,9 +344,10 @@ export default function App() {
   );
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#1a2419', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden', backgroundColor: '#1a2419', fontFamily: 'Inter, sans-serif' }}>
 
-      {/* ══ SIDEBAR ══════════════════════════════════════════════════════════ */}
+      {/* ══ SIDEBAR (desktop only) ═══════════════════════════════════════════ */}
+      {!isPhone && (
       <aside style={{ width: '256px', flexShrink: 0, backgroundColor: '#1a2419', borderRight: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', padding: '28px 0' }}>
         {/* Logo */}
         <div style={{ padding: '0 20px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
@@ -349,19 +391,25 @@ export default function App() {
           })}
         </nav>
 
-        <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: '10px', color: 'rgba(255,255,255,0.25)' }}>
-          Software Engineering I · 2025
+        <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: apiDot, flexShrink: 0 }} />
+            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)' }}>{apiLabel}</span>
+          </div>
+          <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.25)', margin: 0 }}>Software Engineering I · 2025</p>
         </div>
       </aside>
+      )}
 
       {/* ══ MAIN AREA ════════════════════════════════════════════════════════ */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, position: 'relative' }}>
 
-        {/* Top bar */}
-        <header style={{ height: '60px', backgroundColor: '#1e2d1d', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', padding: '0 32px', gap: '12px', flexShrink: 0, position: 'relative' }}>
+        {/* Top bar — desktop shell only; phone screens own their headers */}
+        {!isPhone && (
+        <header style={{ height: '60px', backgroundColor: '#1e2d1d', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', padding: '0 32px', gap: '10px', flexShrink: 0, position: 'relative' }}>
           <span style={{ fontSize: '20px' }}>{viewMeta.emoji}</span>
-          <div>
-            <h1 style={{ margin: 0, fontFamily: 'Playfair Display, serif', fontSize: '18px', fontWeight: '700', color: '#FFFFFF', lineHeight: 1.1 }}>{viewMeta.title}</h1>
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ margin: 0, fontFamily: 'Playfair Display, serif', fontSize: '18px', fontWeight: '700', color: '#FFFFFF', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{viewMeta.title}</h1>
             <p style={{ margin: 0, fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{viewMeta.subtitle}</p>
           </div>
           {activeView !== 'home' && (
@@ -369,10 +417,11 @@ export default function App() {
               ← Back to Home
             </button>
           )}
-          {/* VM button — only in desktop mode on inner views */}
-          {desktopMode && activeView !== 'home' && (
+          {/* VM button — desktop canvas only */}
+          {activeView !== 'home' && (
             <div style={{ position: 'relative', marginLeft: '0' }}>
               <button onClick={() => setMenuOpen(p => !p)}
+                aria-label="Test scenarios"
                 style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#6B7269', border: `3px solid ${vmRingColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif', fontSize: '13px', fontWeight: '600', color: '#FFFFFF', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.3)', transition: 'border-color 0.2s' }}>
                 VM
               </button>
@@ -387,57 +436,102 @@ export default function App() {
             </div>
           )}
         </header>
+        )}
 
         <Suspense fallback={<ViewFallback />}>
-        {/* ── DESKTOP MODE ─────────────────────────────────────────────── */}
-        {desktopMode ? (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#1a2419' }}>
-            {activeView === 'home' ? (
-              <DesktopHome onRecipeSuggestions={goRecipes} onTopRecipeChart={goChart} onPostJob={goJob} />
-            ) : (
-              <div style={{ flex: 1, overflowY: 'auto', backgroundColor: '#FFFBF5' }}>
-                {showJobForm && (
-                  <JobListingForm verificationStatus={jobConfig.verificationStatus} hasBan={jobConfig.hasBan} testScenario={jobScenario} onBack={goHome} desktop />
-                )}
-                {showRecipeSuggestions && (
-                  <RecipeSuggestionsForm hasBan={commentConfig.hasBan} onBack={goHome} desktop />
-                )}
-                {showTopRecipeChart && (
-                  <TopRecipeChart hasBan={commentConfig.hasBan} recipesCount={topChartConfig.recipesCount} onBack={goHome} desktop />
-                )}
-              </div>
-            )}
-          </div>
-        ) : (
-          /* ── MOBILE PREVIEW MODE ─────────────────────────────────────── */
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', backgroundColor: '#111820' }}>
-            <div style={{ borderRadius: '40px', padding: '12px', backgroundColor: '#111', boxShadow: '0 30px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)' }}>
-              <div style={{ borderRadius: '30px', overflow: 'hidden', width: '393px', height: '852px', position: 'relative', backgroundColor: '#FFFBF5' }}>
-                {menuOpen && <div style={{ position: 'absolute', inset: 0, zIndex: 40 }} onClick={() => setMenuOpen(false)} />}
-                {/* VM button */}
-                <button onClick={() => setMenuOpen(p => !p)}
-                  style={{ position: 'absolute', top: '10px', right: '16px', zIndex: 50, width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#6B7269', border: `3px solid ${vmRingColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif', fontSize: '14px', fontWeight: '600', color: '#FFFFFF', boxSizing: 'border-box', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', transition: 'border-color 0.2s' }}>
-                  VM
-                </button>
-                {menuOpen && (
-                  <div style={{ position: 'absolute', top: '56px', right: '16px', zIndex: 50 }}>
-                    <ScenarioDropdown />
-                  </div>
-                )}
-                {/* Mobile content */}
-                {showJobForm
-                  ? <JobListingForm verificationStatus={jobConfig.verificationStatus} hasBan={jobConfig.hasBan} testScenario={jobScenario} onBack={goHome} />
-                  : showRecipeSuggestions
-                  ? <RecipeSuggestionsForm hasBan={commentConfig.hasBan} onBack={goHome} />
-                  : showTopRecipeChart
-                  ? <TopRecipeChart hasBan={commentConfig.hasBan} recipesCount={topChartConfig.recipesCount} onBack={goHome} />
-                  : <HomeScreen onPostJob={goJob} onRecipeSuggestions={goRecipes} onTopRecipeChart={goChart} />
-                }
+          {effectiveDesktop ? (
+            /* ── DESKTOP CANVAS ─────────────────────────────────────────── */
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#1a2419' }}>
+              {activeView === 'home' ? (
+                <DesktopHome onRecipeSuggestions={goRecipes} onTopRecipeChart={goChart} onPostJob={goJob} />
+              ) : (
+                <div style={{ flex: 1, overflowY: 'auto', backgroundColor: '#FFFBF5' }}>
+                  {showJobForm && (
+                    <JobListingForm verificationStatus={jobConfig.verificationStatus} hasBan={jobConfig.hasBan} testScenario={jobScenario} onBack={goHome} desktop />
+                  )}
+                  {showRecipeSuggestions && (
+                    <RecipeSuggestionsForm hasBan={commentConfig.hasBan} onBack={goHome} desktop />
+                  )}
+                  {showTopRecipeChart && (
+                    <TopRecipeChart hasBan={commentConfig.hasBan} recipesCount={topChartConfig.recipesCount} onBack={goHome} desktop />
+                  )}
+                </div>
+              )}
+            </div>
+          ) : isPhone ? (
+            /* ── REAL PHONE: full-bleed, no device chrome ──────────────── */
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#FFFBF5', position: 'relative' }}>
+              {showJobForm
+                ? <JobListingForm verificationStatus={jobConfig.verificationStatus} hasBan={jobConfig.hasBan} testScenario={jobScenario} onBack={goHome} />
+                : showRecipeSuggestions
+                ? <RecipeSuggestionsForm hasBan={commentConfig.hasBan} onBack={goHome} />
+                : showTopRecipeChart
+                ? <TopRecipeChart hasBan={commentConfig.hasBan} recipesCount={topChartConfig.recipesCount} onBack={goHome} showExitBar={false} />
+                : <HomeScreen onPostJob={goJob} onRecipeSuggestions={goRecipes} onTopRecipeChart={goChart} />
+              }
+            </div>
+          ) : (
+            /* ── MOBILE PREVIEW: device frame scaled to fit ────────────── */
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', backgroundColor: '#111820', overflow: 'hidden' }}>
+              <div style={{ transform: `scale(${frameScale})`, transformOrigin: 'center center', borderRadius: '40px', padding: '12px', backgroundColor: '#111', boxShadow: '0 30px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)', flexShrink: 0 }}>
+                <div style={{ borderRadius: '30px', overflow: 'hidden', width: '393px', height: '852px', position: 'relative', backgroundColor: '#FFFBF5' }}>
+                  {menuOpen && <div style={{ position: 'absolute', inset: 0, zIndex: 40 }} onClick={() => setMenuOpen(false)} />}
+                  <button onClick={() => setMenuOpen(p => !p)}
+                    aria-label="Test scenarios"
+                    style={{ position: 'absolute', top: '10px', right: '16px', zIndex: 50, width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#6B7269', border: `3px solid ${vmRingColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif', fontSize: '14px', fontWeight: '600', color: '#FFFFFF', boxSizing: 'border-box', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', transition: 'border-color 0.2s' }}>
+                    VM
+                  </button>
+                  {menuOpen && (
+                    <div style={{ position: 'absolute', top: '56px', right: '16px', zIndex: 50 }}>
+                      <ScenarioDropdown />
+                    </div>
+                  )}
+                  {showJobForm
+                    ? <JobListingForm verificationStatus={jobConfig.verificationStatus} hasBan={jobConfig.hasBan} testScenario={jobScenario} onBack={goHome} />
+                    : showRecipeSuggestions
+                    ? <RecipeSuggestionsForm hasBan={commentConfig.hasBan} onBack={goHome} />
+                    : showTopRecipeChart
+                    ? <TopRecipeChart hasBan={commentConfig.hasBan} recipesCount={topChartConfig.recipesCount} onBack={goHome} />
+                    : <HomeScreen onPostJob={goJob} onRecipeSuggestions={goRecipes} onTopRecipeChart={goChart} />
+                  }
+                </div>
               </div>
             </div>
+          )}
+        </Suspense>
+
+        {/* Phone: floating scenario control + bottom tab bar */}
+        {isPhone && activeView !== 'home' && (
+          <div style={{ position: 'absolute', right: '16px', bottom: '72px', zIndex: 60 }}>
+            <button onClick={() => setMenuOpen(p => !p)}
+              aria-label="Test scenarios"
+              style={{ width: '46px', height: '46px', borderRadius: '50%', backgroundColor: '#6B7269', border: `3px solid ${vmRingColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif', fontSize: '13px', fontWeight: '700', color: '#FFFFFF', cursor: 'pointer', boxShadow: '0 6px 18px rgba(0,0,0,0.35)', boxSizing: 'border-box' }}>
+              VM
+            </button>
+            {menuOpen && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setMenuOpen(false)} />
+                <ScenarioDropdown anchor="above" />
+              </>
+            )}
           </div>
         )}
-        </Suspense>
+
+        {isPhone && (
+          <nav style={{ display: 'flex', alignItems: 'stretch', justifyContent: 'space-around', gap: '2px', padding: '6px 4px calc(6px + env(safe-area-inset-bottom, 0px))', backgroundColor: '#1e2d1d', borderTop: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
+            {navItems.map(({ view, short, emoji, action }) => {
+              const isActive = activeView === view;
+              return (
+                <button key={view} onClick={action}
+                  aria-label={short}
+                  style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', padding: '6px 2px', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: isActive ? 'rgba(232,118,47,0.15)' : 'transparent', color: isActive ? '#E8762F' : 'rgba(255,255,255,0.55)', fontFamily: 'Inter, sans-serif', fontSize: '10px', fontWeight: isActive ? '600' : '400' }}>
+                  <span style={{ fontSize: '16px' }}>{emoji}</span>
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{short}</span>
+                </button>
+              );
+            })}
+          </nav>
+        )}
       </div>
     </div>
   );

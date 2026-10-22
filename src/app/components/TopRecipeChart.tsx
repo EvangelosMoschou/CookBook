@@ -16,11 +16,13 @@
  *                       └── constants / types
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { generateRecipes } from './recipe/utils';
 import { RecipeListView } from './recipe/RecipeListView';
 import { RecipeDetailView } from './recipe/RecipeDetailView';
 import type { Recipe, TopRecipeChartProps } from './recipe/types';
+import { isApiMode } from '../data/config';
+import { listRecipes } from '../data/repositories';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -41,6 +43,7 @@ export function TopRecipeChart({
   recipesCount = 100,
   onBack,
   desktop,
+  showExitBar,
 }: TopRecipeChartProps) {
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
 
@@ -49,13 +52,58 @@ export function TopRecipeChart({
    * capped value so useMemo only re-runs when the effective count changes.
    */
   const displayCount = Math.min(recipesCount, MAX_DISPLAY);
-  const recipes      = useMemo(() => generateRecipes(displayCount), [displayCount]);
-  const loadMessage  = deriveLoadMessage(recipesCount);
+  const mockRecipes = useMemo(() => generateRecipes(displayCount), [displayCount]);
 
-  // isCapped is true only when the original count exceeded the display limit.
-  // Derived here from the source value so RecipeListView never has to inspect
-  // a message string to determine visual state.
-  const isCapped = recipesCount > MAX_DISPLAY;
+  // ── api mode: the backend is the source of truth ──────────────────────────
+  const [apiRecipes, setApiRecipes] = useState<Recipe[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(isApiMode);
+
+  useEffect(() => {
+    if (!isApiMode) return;
+
+    let cancelled = false;
+    setLoading(true);
+
+    listRecipes(MAX_DISPLAY)
+      .then((page) => {
+        if (cancelled) return;
+        setApiRecipes(
+          page.data.map((recipe) => ({
+            id: recipe.id,
+            name: recipe.name,
+            ranking: recipe.ranking,
+            author: recipe.author,
+            category: recipe.category,
+            rating: recipe.rating,
+          })),
+        );
+        setLoadError(null);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Could not load recipes');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const recipes = isApiMode ? apiRecipes : mockRecipes;
+  const isEmpty = isApiMode ? !loading && recipes.length === 0 : recipesCount === 0;
+  const isCapped = !isApiMode && recipesCount > MAX_DISPLAY;
+
+  const loadMessage = isApiMode
+    ? loading
+      ? 'Loading recipes…'
+      : (loadError ??
+        (recipes.length === 0
+          ? 'There are no recipes on the system!'
+          : `${recipes.length} recipes loaded!`))
+    : deriveLoadMessage(recipesCount);
 
   if (selectedRecipe) {
     const recipeRank = recipes.findIndex(r => r.id === selectedRecipe.id) + 1;
@@ -65,6 +113,7 @@ export function TopRecipeChart({
         recipeRank={recipeRank}
         hasBan={hasBan}
         onBack={() => setSelectedRecipe(null)}
+        desktop={desktop}
       />
     );
   }
@@ -73,11 +122,12 @@ export function TopRecipeChart({
     <RecipeListView
       recipes={recipes}
       loadMessage={loadMessage}
-      isEmpty={recipesCount === 0}
+      isEmpty={isEmpty}
       isCapped={isCapped}
       onSelectRecipe={setSelectedRecipe}
       onBack={onBack ?? (() => {})}
       desktop={desktop}
+      showExitBar={showExitBar}
     />
   );
 }

@@ -295,6 +295,8 @@ interface RecipeListViewProps {
   onSelectRecipe: (recipe: Recipe) => void;
   onBack: () => void;
   desktop?: boolean;
+  /** Phone layout hides this because the bottom tab bar already offers Home. */
+  showExitBar?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -317,11 +319,12 @@ export function RecipeListView({
   onSelectRecipe,
   onBack,
   desktop,
+  showExitBar = true,
 }: RecipeListViewProps) {
   return (
     <div
       style={{
-        ...(desktop ? { width: '100%', minHeight: '100%' } : { width: '393px', height: '852px', overflow: 'hidden' }),
+        ...(desktop ? { width: '100%', minHeight: '100%' } : { width: '100%', height: '100%', overflow: 'hidden' }),
         backgroundColor: COLORS.primary,
         display: 'flex',
         flexDirection: 'column',
@@ -329,6 +332,17 @@ export function RecipeListView({
     >
       {!desktop && <ScreenHeader onBack={onBack} />}
 
+      <div
+        style={{
+          width: '100%',
+          maxWidth: desktop ? '960px' : undefined,
+          margin: desktop ? '0 auto' : undefined,
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+          minHeight: 0,
+        }}
+      >
       {/* Always show the Gherkin message as a banner */}
       <LoadBanner message={loadMessage} isEmpty={isEmpty} isCapped={isCapped} />
 
@@ -370,6 +384,7 @@ export function RecipeListView({
           </div>
 
           {/* Exit interface — explicitly offered as per Gherkin */}
+          {showExitBar && (
           <div
             style={{
               padding: '12px 16px 16px',
@@ -396,8 +411,10 @@ export function RecipeListView({
               Exit Interface
             </button>
           </div>
+          )}
         </>
       )}
+      </div>
     </div>
   );
 }

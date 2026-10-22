@@ -1,17 +1,34 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import type { Comment, CommentOutcome } from './types';
 import { INITIAL_COMMENTS, BANNED_WORDS } from './constants';
+import { isApiMode } from '../../data/config';
+import { ApiError } from '../../data/client';
+import { createComment, listComments, type CommentDto } from '../../data/repositories';
 
 // ─── Content Policy ───────────────────────────────────────────────────────────
 //
-// Importing BANNED_WORDS from constants keeps a single source of truth.
-// The check function lives here (not in utils) so it shares the same module
-// scope as submitComment, eliminating any stale-import risk.
+// Word-bounded matching: "shellfish" must not trip the "hell" rule.
+
+const BANNED_PATTERN = new RegExp(`\\b(?:${BANNED_WORDS.join('|')})\\b`, 'i');
 
 function hasViolatingContent(text: string): boolean {
-  const lower = text.toLowerCase();
-  return BANNED_WORDS.some(word => lower.includes(word));
+  return BANNED_PATTERN.test(text);
 }
+
+// ─── API mapping ──────────────────────────────────────────────────────────────
+
+/** SQLite stores UTC as "YYYY-MM-DD HH:MM:SS"; render it in local time. */
+function formatTimestamp(value: string): string {
+  const date = new Date(value.includes('T') ? value : `${value.replace(' ', 'T')}Z`);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+const toComment = (dto: CommentDto): Comment => ({
+  id: dto.id,
+  author: dto.author,
+  text: dto.text,
+  timestamp: formatTimestamp(dto.createdAt),
+});
 
 // ─── Return Type ──────────────────────────────────────────────────────────────
 
@@ -26,40 +43,77 @@ export interface UseCommentsReturn {
   dismissOutcome: () => void;
 }
 
+export interface UseCommentsOptions {
+  /** Recipe the comments belong to. Required for persistence. */
+  recipeId?: number;
+  /** When true (and the app runs in api mode) comments round-trip to the API. */
+  persist?: boolean;
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 /**
  * Encapsulates all comment state and business rules.
  *
- * Uses refs for commentText and hasBan so that submitComment (stabilised with
- * useCallback) always reads the CURRENT values — eliminating any stale-closure
- * risk that existed when those values were captured directly in the closure.
+ * Two sources of truth:
+ *   • mock mode — in-browser state, seeded from INITIAL_COMMENTS
+ *   • api mode  — comments are loaded from and posted to the backend
+ *
+ * Refs keep `submitComment` stable while always reading current values.
  */
-export function useComments(hasBan: boolean): UseCommentsReturn {
-  const [comments, setComments] = useState<Comment[]>(INITIAL_COMMENTS);
+export function useComments(
+  hasBan: boolean,
+  { recipeId, persist: persistRequested = false }: UseCommentsOptions = {},
+): UseCommentsReturn {
+  const persist = persistRequested && isApiMode && recipeId != null;
+
+  const [comments, setComments] = useState<Comment[]>(persist ? [] : INITIAL_COMMENTS);
   const [commentText, setCommentTextState] = useState('');
   const [outcome, setOutcome] = useState<CommentOutcome>(null);
 
   // ── Refs: always hold the latest values ──────────────────────────────────────
   const commentTextRef = useRef(commentText);
-  const hasBanRef      = useRef(hasBan);
+  const hasBanRef = useRef(hasBan);
+  const persistRef = useRef(persist);
+  const recipeIdRef = useRef(recipeId);
 
-  // Keep refs in sync on every render, before any event handler fires.
   commentTextRef.current = commentText;
-  hasBanRef.current      = hasBan;
+  hasBanRef.current = hasBan;
+  persistRef.current = persist;
+  recipeIdRef.current = recipeId;
 
-  // ── Stable setter that keeps the ref in sync ──────────────────────────────────
+  // ── Load existing comments for the recipe ───────────────────────────────────
+  useEffect(() => {
+    if (!persist || recipeId == null) return;
+
+    let cancelled = false;
+    listComments(recipeId)
+      .then(({ data }) => {
+        if (!cancelled) setComments(data.map(toComment));
+      })
+      .catch(() => {
+        if (!cancelled) setComments([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [persist, recipeId]);
+
+  // ── Stable setter that keeps the ref in sync ────────────────────────────────
   const setCommentText = useCallback((text: string) => {
     commentTextRef.current = text;
     setCommentTextState(text);
   }, []);
 
-  // ── Core submit logic ─────────────────────────────────────────────────────────
-  //
-  // Empty dependency array is intentional: the function only reads from refs,
-  // which are always up-to-date before any event handler fires.
+  const clearInput = useCallback(() => {
+    setCommentTextState('');
+    commentTextRef.current = '';
+  }, []);
+
+  // ── Core submit logic ───────────────────────────────────────────────────────
   const submitComment = useCallback(() => {
-    const text   = commentTextRef.current;
+    const text = commentTextRef.current;
     const banned = hasBanRef.current;
 
     // Guard 1 — empty input
@@ -80,18 +134,35 @@ export function useComments(hasBan: boolean): UseCommentsReturn {
       return;
     }
 
-    // Happy path — post the comment (Scenario C-1)
+    // Happy path — persist when the API is the source of truth
+    if (persistRef.current && recipeIdRef.current != null) {
+      const targetId = recipeIdRef.current;
+
+      createComment(targetId, text)
+        .then((created) => {
+          setComments((prev) => [toComment(created), ...prev]);
+          clearInput();
+          setOutcome({ type: 'success' });
+        })
+        .catch((error: unknown) => {
+          if (error instanceof ApiError && error.status === 403) setOutcome({ type: 'banned' });
+          else if (error instanceof ApiError && error.status === 422) setOutcome({ type: 'violation' });
+          else setOutcome({ type: 'error' });
+        });
+      return;
+    }
+
+    // Happy path — local state (Scenario C-1)
     const newComment: Comment = {
       id: Date.now(),
       author: 'You',
       text,
       timestamp: 'Just now',
     };
-    setComments(prev => [newComment, ...prev]);
-    setCommentTextState('');
-    commentTextRef.current = '';
+    setComments((prev) => [newComment, ...prev]);
+    clearInput();
     setOutcome({ type: 'success' });
-  }, []); // stable — refs handle freshness
+  }, [clearInput]); // stable — refs handle freshness
 
   const dismissOutcome = useCallback(() => {
     setOutcome(null);

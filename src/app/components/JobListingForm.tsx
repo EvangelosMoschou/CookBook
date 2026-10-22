@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { CheckCircle, AlertCircle, XCircle } from './icons';
 import { VerifiedBadge } from './VerifiedBadge';
+import { isApiMode } from '../data/config';
+import { ApiError } from '../data/client';
+import { createJob } from '../data/repositories';
 
 interface JobListingFormProps {
   verificationStatus: 'Verified' | 'Unverified' | 'Pending';
@@ -59,7 +62,39 @@ export function JobListingForm({ verificationStatus, hasBan, testScenario, onBac
     return missing;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    // api mode — the backend owns validation and account checks
+    if (isApiMode) {
+      try {
+        await createJob({
+          title: formData.title.trim(),
+          description: formData.description.trim(),
+          location: formData.location.trim(),
+          minCompensation: formData.minCompensation === '' ? null : Number(formData.minCompensation),
+          maxCompensation: formData.maxCompensation === '' ? null : Number(formData.maxCompensation),
+          employmentType: formData.employmentType as 'Full-time' | 'Part-time' | 'Contract',
+          skills: formData.skills
+            .split(',')
+            .map((skill) => skill.trim())
+            .filter(Boolean),
+        });
+        setModalType('success');
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 403) {
+          setErrorMessage(error.message);
+          setModalType('error');
+        } else if (error instanceof ApiError && error.status === 422) {
+          const missing = (error.details as { missing?: string[] } | undefined)?.missing ?? [];
+          setMissingFields(missing);
+          setModalType('draft');
+        } else {
+          setErrorMessage('Could not post the job listing. Please try again.');
+          setModalType('error');
+        }
+      }
+      return;
+    }
+
     if (testScenario === 1) {
       setModalType('success');
       return;
@@ -137,7 +172,7 @@ export function JobListingForm({ verificationStatus, hasBan, testScenario, onBac
       style={{
         backgroundColor: containerBg,
         fontFamily: 'Inter, sans-serif',
-        ...(isDesktop ? { width: '100%', minHeight: '100%' } : { width: '393px', height: '852px' }),
+        ...(isDesktop ? { width: '100%', minHeight: '100%' } : { width: '100%', height: '100%' }),
       }}
     >
       {/* Mobile Header */}

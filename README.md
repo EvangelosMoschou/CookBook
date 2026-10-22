@@ -1,10 +1,11 @@
 # CookBook — SE1 Scenario Demo
 
-A React + Vite prototype of **CookBook**, built for the **Software Engineering I & II** course.
+A full-stack prototype of **CookBook**, built for the **Software Engineering I & II** course.
 
-The app is a working UI demo *and* a specification-conformance harness: every feature can be
-driven into the exact state described by a Gherkin scenario from the SRS, so each acceptance
-criterion can be demonstrated live instead of described.
+The app is a working UI *and* a specification-conformance harness: every feature can be driven
+into the exact state described by a Gherkin scenario from the SRS, so each acceptance criterion
+can be demonstrated live instead of described. Data can come from the deterministic mock layer
+or from a real SQLite-backed API.
 
 ## Features
 
@@ -17,30 +18,78 @@ criterion can be demonstrated live instead of described.
 Recipe detail views include a **comment section** with posting rules: empty input, banned-word
 violation, and banned-account rejection.
 
+## Architecture
+
+```
+browser ──► React 18 + Vite 6 (src/)
+                │  data layer: mock | api
+                ▼
+          Express 5 API (server/)
+                │  repositories
+                ▼
+          SQLite (better-sqlite3) + SQL migrations
+```
+
+- **Server** — Express 5 with layered structure: routes → repositories → SQLite. Schema and
+  constraints live in `server/db/migrations/`, applied automatically on startup and tracked in
+  `schema_migrations`. Validation and the banned-word policy are enforced **server-side**, so
+  they cannot be bypassed by calling the API directly.
+- **Client** — a typed `fetch` client in `src/app/data/` with one module per resource. The
+  `VITE_DATA_SOURCE` flag selects the mock scenarios or the real API.
+- **Database** — the schema ships **empty**. Migrations create `users`, `recipes`, `comments`
+  and `job_listings` with foreign keys, check constraints and indexes; no rows are seeded.
+
+### API
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `GET` | `/api/health` | Status + row counts |
+| `GET` | `/api/recipes` | Paginated, ranked order |
+| `GET` | `/api/recipes/:id` | 404 when missing |
+| `GET` | `/api/recipes/:id/comments` | Newest first |
+| `POST` | `/api/recipes/:id/comments` | 403 banned account · 422 violation/empty |
+| `GET` | `/api/jobs` | Paginated, newest first |
+| `POST` | `/api/jobs` | 403 account checks · 422 missing fields |
+| `GET` | `/api/users/:handle` | Account state |
+
+Callers are identified by the `x-user-handle` header (placeholder auth); with an empty database
+requests are anonymous.
+
 ## Running locally
 
 Requires Node 18+ (developed on Node 22).
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
+npm run dev        # API on :3001 + web on :5173
 ```
 
-Other scripts:
+Open **http://localhost:5173**.
+
+| Script | Purpose |
+| --- | --- |
+| `npm run dev` | API and web together |
+| `npm run dev:web` / `dev:api` | Run one side only |
+| `npm run build` / `preview` | Production build / preview |
+| `npm run db:migrate` | Apply migrations |
+| `npm run db:reset` | Drop and recreate the local database |
+| `npm run typecheck` | Type-check client and server |
+
+### Data source
 
 ```bash
-npm run typecheck   # tsc --noEmit
-npm run build       # production build to dist/
-npm run preview     # serve the production build
+npm run dev                      # mock data (default) — scenario demos work offline
+VITE_DATA_SOURCE=api npm run dev # real SQLite API; DB starts empty, so empty states render
 ```
 
-No backend, database, or API keys are needed — all data is in-memory mock data and resets on reload.
+Copy `.env.example` to `.env` to set defaults. The sidebar footer shows which source is active
+and, in api mode, whether the backend is reachable.
 
 ## Demonstrating the scenarios
 
-1. Open the app and pick a feature from the sidebar (or a card on the home screen).
-2. Click the **VM** avatar in the top-right corner.
-3. Choose a scenario from the dropdown.
+1. Open a feature from the navigation.
+2. Click the **VM** avatar (desktop: top-right; phone: floating button).
+3. Pick a scenario.
 
 | Scenario set | Cases |
 | --- | --- |
@@ -48,48 +97,50 @@ No backend, database, or API keys are needed — all data is in-memory mock data
 | Top Recipe Chart | `TC-1` 25 recipes · `TC-2` 100 recipes · `TC-3` 500135 recipes (capped at 100) · `TC-4` 0 recipes |
 | Comments | `C-1` no ban → success · `C-2` active ban · `C-3` no ban + banned word |
 
-Banned words for `C-3`: `damn`, `hell`, `crap`, `stupid`, `idiot`, `hate`.
+Banned words for `C-3`: `damn`, `hell`, `crap`, `stupid`, `idiot`, `hate` (whole words only, so
+"shellfish" is not flagged). Detailed cases: [TESTING_INSTRUCTIONS.md](TESTING_INSTRUCTIONS.md).
 
-Detailed comment-moderation test cases are in [TESTING_INSTRUCTIONS.md](TESTING_INSTRUCTIONS.md).
+## Responsive behaviour
+
+- **Phones (< 900 px)** — full-bleed layout, bottom tab bar, floating scenario control, safe-area
+  padding. No fixed widths.
+- **Tablets and desktops** — sidebar shell; the *Mobile* view mode renders the 393 × 852 phone
+  frame, automatically scaled down so it never overflows short windows.
+- Verified without horizontal overflow at 375×667, 393×852, 667×375, 768×1024, 1024×768,
+  1440×900, 1920×1080 and 1280×600 (scaled preview).
 
 ## Tech stack
 
-- React 18 + TypeScript
-- Vite 6
-- Tailwind CSS v4 (layout utilities; component styling is inline for precise design control)
-- Inline SVG icons — no icon library dependency
+React 18, TypeScript, Vite 6, Express 5, better-sqlite3, Tailwind CSS v4 (layout utilities;
+component styling is inline for precise design control). Inline SVG icons — no icon library.
 
 ## Structure
 
 ```
+server/
+├── index.ts                 Express bootstrap, migrations on boot
+├── env.ts                   PORT, DB_PATH
+├── db/                      connection, migrations, reset
+├── domain/                  shared types, content policy
+├── repositories/            recipes, comments, jobs, users
+└── http/                    router, error handling
+
 src/
-├── main.tsx                  app entry point
+├── main.tsx
 ├── app/
-│   ├── App.tsx               shell, navigation, scenario state
-│   └── components/
-│       ├── HomeScreen.tsx            mobile home
-│       ├── JobListingForm.tsx        job listing feature
-│       ├── RecipeSuggestionsForm.tsx ingredient/time search feature
-│       ├── TopRecipeChart.tsx        ranked leaderboard feature
-│       ├── icons.tsx                 inline SVG icons
-│       ├── VerifiedBadge.tsx
-│       ├── figma/ImageWithFallback.tsx
-│       └── recipe/
-│           ├── types.ts              shared types
-│           ├── constants.ts          design tokens, banned words, recipe data
-│           ├── utils.ts              deterministic recipe generation
-│           ├── useComments.ts        comment business rules
-│           ├── CommentSection.tsx
-│           ├── RecipeDetailView.tsx
-│           └── RecipeListView.tsx
-└── styles/                   fonts, Tailwind entry, theme tokens
+│   ├── App.tsx              shell, navigation, scenario state, responsive layout
+│   ├── data/                API client, repositories, data-source config, health hook
+│   ├── hooks/useViewport.ts viewport tracking, breakpoint
+│   └── components/          features + recipe/ domain module
+└── styles/                  fonts, Tailwind entry, theme tokens
 ```
 
-Business rules are kept out of the view components: comment outcomes live in `useComments`,
+Business rules are kept out of view components: comment outcomes live in `useComments`,
 recipe generation in `utils.ts`, and shared tokens/data in `constants.ts`.
 
 ## Notes
 
 - Views are code-split with `React.lazy`; the home screen loads only the app shell.
-- Desktop and mobile preview modes are both available from the sidebar.
-- The prototype is intentionally stateless — no persistence layer is implemented.
+- The mock layer is intentionally stateless. In api mode, comments and job listings persist to
+  SQLite; recipe creation is available through the repository/API only (no admin UI).
+- Authentication is a placeholder (`x-user-handle` header) rather than a real session system.

@@ -109,6 +109,8 @@ interface RecipeDetailViewProps {
   recipeRank: number;
   hasBan: boolean;
   onBack: () => void;
+  /** When true, fills the desktop canvas instead of the 393px phone frame. */
+  desktop?: boolean;
 }
 
 // ─── Static key ingredients (mock placeholder data) ──────────────────────────
@@ -133,12 +135,12 @@ export function RecipeDetailView({
   recipeRank,
   hasBan,
   onBack,
+  desktop,
 }: RecipeDetailViewProps) {
   return (
     <div
       style={{
-        width: '393px',
-        height: '852px',
+        ...(desktop ? { width: '100%', minHeight: '100%' } : { width: '100%', height: '100%' }),
         backgroundColor: COLORS.primary,
         display: 'flex',
         flexDirection: 'column',
@@ -148,7 +150,16 @@ export function RecipeDetailView({
       <ScreenHeader title="Recipe Details" backLabel="← Back to List" onBack={onBack} />
 
       {/* Scrollable body */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px' }}>
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: desktop ? '32px 24px' : '20px 16px',
+          width: '100%',
+          maxWidth: desktop ? '760px' : undefined,
+          margin: desktop ? '0 auto' : undefined,
+        }}
+      >
         {/* Rank badge */}
         <div
           style={{
@@ -274,7 +285,7 @@ export function RecipeDetailView({
         </div>
 
         {/* Comments — fully self-contained */}
-        <CommentSection hasBan={hasBan} onExit={onBack} />
+        <CommentSection hasBan={hasBan} onExit={onBack} recipeId={recipe.id} persistToApi />
       </div>
     </div>
   );
