@@ -2,6 +2,8 @@
 
 **Software Engineering I & II — course project**
 
+> **Live demo:** [evangelosmoschou.github.io/CookBook](https://evangelosmoschou.github.io/CookBook/) — runs entirely in the browser against the deterministic mock data layer.
+
 A full-stack prototype of *CookBook*, a recipe and culinary-jobs platform. The app is both a
 working UI and a **specification-conformance harness**: each feature can be driven into the exact
 state described by a Gherkin scenario from the SRS, so every acceptance criterion can be
@@ -206,3 +208,8 @@ component styling is inline for precise design control). Icons are inline SVG �
 - The database is intentionally empty: migrations create `users`, `recipes`, `comments` and
   `job_listings` with foreign keys, check constraints and indexes, but no rows are seeded.
 - `server/data/` (the SQLite file) is git-ignored and recreated by `npm run db:reset`.
+
+## License
+
+Source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may read,
+run and modify it for noncommercial purposes; commercial use requires permission.
