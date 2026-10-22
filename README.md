@@ -10,6 +10,11 @@ demonstrated live rather than described.
 It runs against either a deterministic mock data layer (for scenario demos) or a real
 SQLite-backed HTTP API.
 
+**Live demo — <https://evangelosmoschou.github.io/CookBook/>**
+
+The deployed demo runs on the mock data layer, so every feature and every Gherkin scenario can be
+tried without a backend. The SQLite API is local-only; see [Data sources](#data-sources).
+
 ![Top Recipe Chart on desktop](docs/desktop-chart.png)
 
 ## What's in the repository
@@ -67,6 +72,11 @@ VITE_DATA_SOURCE=api npm run dev  # real SQLite API — starts empty, so empty s
 | --- | --- |
 | `mock` | Scenario harness drives every state from in-memory data. No backend required. |
 | `api` | Chart, comments and job posting round-trip to SQLite. Account checks come from the `users` table. |
+
+The public demo at <https://evangelosmoschou.github.io/CookBook/> is a static build in `mock`
+mode, deployed by [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml). Because Pages
+serves static files only, the Express/SQLite API is not part of the deployment — run it locally
+to exercise the `api` mode.
 
 Copy `.env.example` to `.env` to make a mode the default. In api mode the sidebar footer shows
 backend reachability and the current recipe count.
